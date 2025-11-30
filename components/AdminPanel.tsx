@@ -31,32 +31,32 @@ export default function AdminPanel({
     const [editBalance, setEditBalance] = useState<number | string>(0);
     const [editLoop, setEditLoop] = useState<number | string>(0);
     const [editSavings, setEditSavings] = useState<number | string>(0);
+    const [refreshTrigger, setRefreshTrigger] = useState(0);
 
     // Fetch Users
     useEffect(() => {
         if (!currentUser?.isAdmin) return;
         
         if (isDemo) {
-            // Fake admin data
-            setAllUsers([
-                {...currentUser, id: 'demo-admin'},
-                {
-                    email: 'user2@demo.com',
-                    balance: 0,
-                    loopAmount: 0,
-                    loopEndTime: null,
-                    loopStatus: 'idle',
-                    savingsBalance: 0,
-                    referralCode: 'USER2',
-                    invitedBy: null,
-                    isAdmin: false,
-                    isBlocked: false,
-                    teamCommission: 0,
-                    totalEarnings: 0,
-                    joinedAt: new Date(),
-                    id: 'demo-user-2'
+            // "Real" Admin Panel for Demo Mode: Scan Local Storage
+            const users: (UserData & { id: string })[] = [];
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                if (key && key.startsWith('bitnest_data_')) {
+                    try {
+                        const data = JSON.parse(localStorage.getItem(key) || '{}');
+                        if (data.email) {
+                            users.push({
+                                ...data,
+                                id: 'uid-' + data.email.replace(/[^a-zA-Z0-9]/g, '')
+                            });
+                        }
+                    } catch (e) {
+                        console.error("Error parsing user data", key);
+                    }
                 }
-            ]);
+            }
+            setAllUsers(users);
             return;
         }
 
@@ -68,7 +68,7 @@ export default function AdminPanel({
             setAllUsers(users);
         });
         return () => unsub();
-    }, [currentUser, db, appId, isDemo]);
+    }, [currentUser, db, appId, isDemo, refreshTrigger]);
 
     // Fetch Transactions
     useEffect(() => {
@@ -91,8 +91,34 @@ export default function AdminPanel({
 
     const handleAction = async (userId: string, action: string) => {
         if (isDemo) {
-            showNotification('Admin actions are simulated in Demo Mode');
-            setSelectedUser(null);
+            // "Real" Action Implementation for Demo Mode
+            const targetUser = allUsers.find(u => u.id === userId);
+            if (!targetUser) return;
+
+            const key = `bitnest_data_${targetUser.email}`;
+            const storedData = localStorage.getItem(key);
+            
+            if (storedData) {
+                const data = JSON.parse(storedData);
+                
+                if (action === 'block') data.isBlocked = true;
+                if (action === 'unblock') data.isBlocked = false;
+                if (action === 'reset_balance') {
+                    data.balance = 0;
+                    data.savingsBalance = 0;
+                    data.loopAmount = 0;
+                }
+                if (action === 'update_balance') {
+                    data.balance = parseFloat(editBalance.toString());
+                    data.loopAmount = parseFloat(editLoop.toString());
+                    data.savingsBalance = parseFloat(editSavings.toString());
+                }
+
+                localStorage.setItem(key, JSON.stringify(data));
+                setRefreshTrigger(prev => prev + 1); // Refresh the list
+                setSelectedUser(null);
+                showNotification('User updated successfully');
+            }
             return;
         }
 
@@ -126,7 +152,6 @@ export default function AdminPanel({
         <div className="max-w-7xl mx-auto animate-fade-in">
             <h2 className="text-3xl font-black text-red-500 mb-6 border-b border-red-900 pb-4 tracking-tighter">
                 SUPER ADMIN PANEL
-                {isDemo && <span className="ml-4 text-sm font-normal text-yellow-500 bg-yellow-900/20 px-2 py-1 rounded">(DEMO)</span>}
             </h2>
 
             {/* Admin Stats */}

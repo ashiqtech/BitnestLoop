@@ -162,6 +162,12 @@ export default function App() {
     useEffect(() => {
         // Persistence Logic for Demo
         if (isDemo) {
+            // Load transactions from local storage
+            const savedTxs = localStorage.getItem('bitnest_transactions');
+            if (savedTxs) {
+                setMockTransactions(JSON.parse(savedTxs));
+            }
+
             const localSession = localStorage.getItem('bitnest_demo_session');
             const sessionSession = sessionStorage.getItem('bitnest_demo_session');
             const savedSession = localSession || sessionSession;
@@ -251,6 +257,13 @@ export default function App() {
             localStorage.setItem(`bitnest_data_${user.email}`, JSON.stringify(userData));
         }
     }, [userData, isDemo, user]);
+
+    // Save Demo Transactions on Change
+    useEffect(() => {
+        if (isDemo) {
+            localStorage.setItem('bitnest_transactions', JSON.stringify(mockTransactions));
+        }
+    }, [mockTransactions, isDemo]);
 
     // --- Financial Logic ---
 
@@ -506,7 +519,7 @@ export default function App() {
                 type: 'deposit',
                 amount: amount,
                 status: 'pending',
-                createdAt: new Date()
+                createdAt: new Date().toISOString()
             };
             setMockTransactions([newTx, ...mockTransactions]);
             showNotification('Deposit request submitted to Admin');
@@ -543,7 +556,7 @@ export default function App() {
                 amount: amount,
                 address: address,
                 status: 'pending',
-                createdAt: new Date()
+                createdAt: new Date().toISOString()
             };
             setMockTransactions([newTx, ...mockTransactions]);
             // Deduct immediately in demo
@@ -578,10 +591,20 @@ export default function App() {
             setMockTransactions(mockTransactions.map(t => 
                 t.id === tx.id ? { ...t, status: 'approved' } : t
             ));
+            
             if (tx.type === 'deposit') {
-                 // Update user state if it's the current user
-                 if (tx.userId === user.uid) {
-                     setUserData({...userData!, balance: userData!.balance + tx.amount});
+                 // We need to update the specific user's balance in local storage
+                 const userKey = `bitnest_data_${tx.userEmail}`;
+                 const storedUser = localStorage.getItem(userKey);
+                 if (storedUser) {
+                     const uData = JSON.parse(storedUser);
+                     uData.balance += tx.amount;
+                     localStorage.setItem(userKey, JSON.stringify(uData));
+                     
+                     // If it's the current user, update state
+                     if (user.email === tx.userEmail) {
+                         setUserData({...userData!, balance: userData!.balance + tx.amount});
+                     }
                  }
             }
             showNotification('Transaction Approved');
@@ -607,9 +630,21 @@ export default function App() {
              setMockTransactions(mockTransactions.map(t => 
                 t.id === tx.id ? { ...t, status: 'rejected' } : t
             ));
-            if (tx.type === 'withdraw' && tx.userId === user.uid) {
-                 // Refund
-                 setUserData({...userData!, balance: userData!.balance + tx.amount});
+            
+            if (tx.type === 'withdraw') {
+                 // Refund the user in local storage
+                 const userKey = `bitnest_data_${tx.userEmail}`;
+                 const storedUser = localStorage.getItem(userKey);
+                 if (storedUser) {
+                     const uData = JSON.parse(storedUser);
+                     uData.balance += tx.amount;
+                     localStorage.setItem(userKey, JSON.stringify(uData));
+
+                     // If it's the current user, update state
+                     if (user.email === tx.userEmail) {
+                         setUserData({...userData!, balance: userData!.balance + tx.amount});
+                     }
+                 }
             }
             showNotification('Transaction Rejected');
             return;
