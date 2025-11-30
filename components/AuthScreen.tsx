@@ -34,6 +34,7 @@ export default function AuthScreen({ mode, setMode, auth, db, appId, onError, on
             // A. Check URL
             if (urlRef) {
                 finalCode = urlRef.trim().toUpperCase();
+                console.log("[REFERRAL_DEBUG] URL Code Detected:", finalCode);
                 localStorage.setItem('bitnest_referral_code', finalCode);
                 
                 // Clean URL
@@ -46,7 +47,10 @@ export default function AuthScreen({ mode, setMode, auth, db, appId, onError, on
             // B. Check Storage if URL is empty
             else {
                 const stored = localStorage.getItem('bitnest_referral_code');
-                if (stored) finalCode = stored;
+                if (stored) {
+                    finalCode = stored;
+                    console.log("[REFERRAL_DEBUG] LocalStorage Code Found:", finalCode);
+                }
             }
 
             // C. Update State & Lock
@@ -84,10 +88,17 @@ export default function AuthScreen({ mode, setMode, auth, db, appId, onError, on
         
         try {
             // --- STEP 2: PREPARE DATA ---
-            // Priority: 1. Form Input, 2. LocalStorage, 3. URL (if somehow missed)
-            const storedCode = localStorage.getItem('bitnest_referral_code');
-            const rawInviterCode = formData.referralCode || storedCode || '';
-            const inviterCode = rawInviterCode.trim().toUpperCase();
+            // Priority: 1. Form Input, 2. LocalStorage
+            let rawInviterCode = formData.referralCode;
+            
+            // Fail-safe: Check local storage one last time if form is empty
+            if (!rawInviterCode) {
+                 const stored = localStorage.getItem('bitnest_referral_code');
+                 if (stored) rawInviterCode = stored;
+            }
+            
+            const inviterCode = rawInviterCode ? rawInviterCode.trim().toUpperCase() : null;
+            console.log("[REFERRAL_DEBUG] Final Code for Signup:", inviterCode);
 
             // --- DEMO MODE ---
             if (isDemo) {
@@ -116,24 +127,34 @@ export default function AuthScreen({ mode, setMode, auth, db, appId, onError, on
                 if (formData.password.length < 6) throw new Error("Password must be at least 6 characters");
                 
                 // 1. Create Auth User
+                console.log("[REFERRAL_DEBUG] Creating Auth User...");
                 const uc = await createUserWithEmailAndPassword(auth, formData.email, formData.password);
                 const isAdmin = formData.email.toLowerCase() === ADMIN_EMAIL.toLowerCase();
 
-                // 2. Increment Referrer Count (If code exists)
+                // 2. Increment Referrer Count (ATOMIC INCREMENT)
                 if (inviterCode) {
                     try {
+                        console.log("[REFERRAL_DEBUG] Incrementing team count for referrer:", inviterCode);
                         const q = query(collection(db, 'artifacts', appId, 'public', 'data', 'users'), where('referralCode', '==', inviterCode));
                         const snap = await getDocs(q);
+                        
                         if (!snap.empty) {
-                            await updateDoc(snap.docs[0].ref, { teamCount: increment(1) });
+                            const referrerRef = snap.docs[0].ref;
+                            await updateDoc(referrerRef, { teamCount: increment(1) });
+                            console.log("[REFERRAL_DEBUG] SUCCESS: Referrer count incremented.");
+                        } else {
+                             console.warn("[REFERRAL_DEBUG] WARNING: Referrer code found but user does not exist in DB.");
                         }
                     } catch (e) {
-                        console.error("Referral increment error:", e);
+                        console.error("[REFERRAL_DEBUG] CRITICAL ERROR: Failed to increment referral count:", e);
                     }
+                } else {
+                    console.log("[REFERRAL_DEBUG] No referrer code provided.");
                 }
 
                 // 3. Create User Profile
                 // Using merge: true ensures if App.tsx accidentally created a stub, we fill it properly
+                console.log("[REFERRAL_DEBUG] Saving new user profile...");
                 await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', uc.user.uid), {
                     email: formData.email,
                     username: formData.email.split('@')[0],
@@ -144,7 +165,7 @@ export default function AuthScreen({ mode, setMode, auth, db, appId, onError, on
                     loopStatus: 'idle',
                     savingsBalance: 0,
                     referralCode: generateReferralCode(),
-                    invitedBy: inviterCode || null, // <--- CRITICAL: Saving the code
+                    invitedBy: inviterCode, // <--- CRITICAL: Saving the code
                     isAdmin: isAdmin,
                     isBlocked: false,
                     teamCommission: 0,
@@ -153,6 +174,7 @@ export default function AuthScreen({ mode, setMode, auth, db, appId, onError, on
                     teamCount: 0,
                     referralClicks: 0
                 }, { merge: true });
+                console.log("[REFERRAL_DEBUG] Profile saved successfully.");
                 
                 localStorage.removeItem('bitnest_referral_code'); // Cleanup
                 onSuccess("Account created! Welcome.");
@@ -167,6 +189,7 @@ export default function AuthScreen({ mode, setMode, auth, db, appId, onError, on
                 setMode('signin');
             }
         } catch (err: any) {
+            console.error("[REFERRAL_DEBUG] Global Error:", err);
             onError(err.message);
         } finally {
             if (!isDemo) setLoading(false);
