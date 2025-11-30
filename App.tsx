@@ -139,6 +139,13 @@ export default function App() {
         
         const finalData = storedData || defaultMockData;
 
+        // Inject team count for demo
+        try {
+            const code = finalData.referralCode.trim().toUpperCase();
+            const count = parseInt(localStorage.getItem(`bitnest_demo_team_${code}`) || '0');
+            finalData.teamCount = count;
+        } catch (e) {}
+
         setUser(mockUser);
         setUserData(finalData);
         setLoading(false);
@@ -208,6 +215,16 @@ export default function App() {
                 unsubscribeProfile = onSnapshot(userRef, async (docSnap) => {
                     if (docSnap.exists()) {
                         const data = docSnap.data() as UserData;
+                        
+                        // Fetch Team Count Live for UI Badge
+                        try {
+                             const q = query(collection(db, 'artifacts', appId, 'public', 'data', 'users'), where('invitedBy', '==', data.referralCode));
+                             const countSnap = await getDocs(q);
+                             data.teamCount = countSnap.size;
+                        } catch(e) {
+                             console.log("Error fetching team count", e);
+                        }
+
                         setUserData(data);
                         if (data.isBlocked) {
                             showNotification('Your account has been blocked by Admin.', 'error');
@@ -227,7 +244,8 @@ export default function App() {
                             isBlocked: false,
                             teamCommission: 0,
                             totalEarnings: 0,
-                            joinedAt: serverTimestamp()
+                            joinedAt: serverTimestamp(),
+                            teamCount: 0
                         };
                         
                         setUserData(defaultData);
