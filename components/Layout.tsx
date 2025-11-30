@@ -8,17 +8,18 @@ import {
     Wallet, 
     Menu,
     X,
-    ShieldAlert
+    ShieldAlert,
+    // FIX: LucideIcon type ko import kiya gaya
+    LucideIcon 
 } from 'lucide-react';
+// NOTE: Make sure aapki '../types' file mein UserData mein teamCount field ho.
+import { UserData, NotificationState } from '../types'; 
 
-// === 1. TYPESCRIPT FIX & ENHANCEMENT (For Team/Referral Count) ===
-// NOTE: Make sure aap '../types' file mein bhi in types ko update karein.
-
+// === TYPESCRIPT FIX & ENHANCEMENT (UserData interface should be updated in '../types') ===
 interface UserData {
     email: string;
     balance: number;
     isAdmin: boolean;
-    // Naye fields for team/referral count
     teamCount?: number; 
     referralCount?: number;
 }
@@ -27,6 +28,8 @@ interface NotificationState {
     type: 'success' | 'error';
     msg: string;
 }
+// === END of temporary type definitions ===
+
 
 // Layout props
 interface LayoutProps {
@@ -40,13 +43,14 @@ interface LayoutProps {
     children?: React.ReactNode; 
 }
 
-// NavBtn props: 'children' add kiya taa ke count display ho sake
+// NavBtn props
 interface NavBtnProps {
     active: boolean;
     onClick: () => void;
-    icon: React.ComponentType<{ size?: number }>;
+    // FIX: icon prop ka type ab LucideIcon hai, jo TS2322 error ko solve karta hai
+    icon: LucideIcon; 
     label: string;
-    children?: React.ReactNode; // Optional: To display count/badge inside the button
+    children?: React.ReactNode; // To display count/badge
 }
 
 // NavBtn component
@@ -63,7 +67,7 @@ const NavBtn: React.FC<NavBtnProps> = ({ active, onClick, icon: Icon, label, chi
             <Icon size={20} />
             <span>{label}</span>
         </div>
-        {children} {/* Children (the count) will be rendered here */}
+        {children}
     </button>
 );
 
@@ -78,7 +82,8 @@ const Layout: React.FC<LayoutProps> = ({
     notification,
     children,
 }) => {
-    // Ye function sidebar close karega jab mobile pe page change ho
+    
+    // Function to handle navigation and close sidebar on mobile
     const handleNavClick = (page: string) => {
         setCurrentPage(page);
         setSidebarOpen(false);
@@ -123,7 +128,7 @@ const Layout: React.FC<LayoutProps> = ({
                     {/* Admin Button */}
                     {userData?.isAdmin && (
                         <button
-                            onClick={() => handleNavClick('admin')} // handleNavClick use kiya
+                            onClick={() => handleNavClick('admin')}
                             className="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded text-xs font-bold uppercase tracking-widest shadow-red-900/50 shadow-lg"
                         >
                             Admin
@@ -168,7 +173,7 @@ const Layout: React.FC<LayoutProps> = ({
                                 icon={Users}
                                 label="My Team"
                             >
-                                {/* === FIX 2: TEAM COUNT DISPLAY === */}
+                                {/* Team Count Display */}
                                 {userData.teamCount && (
                                     <span className="bg-green-700/50 text-white px-2 py-0.5 rounded-full text-xs font-mono font-semibold">
                                         {userData.teamCount}
@@ -195,7 +200,6 @@ const Layout: React.FC<LayoutProps> = ({
                 </aside>
 
                 {/* Main Content */}
-                {/* Ye children wala code bilkul theek hai aur iski wajah se koi problem nahi honi chahiye */}
                 <main className="flex-1 p-4 lg:p-8 overflow-y-auto pb-24 bg-[#0B0C10]">
                     {children}
                 </main>
