@@ -9,27 +9,13 @@ import {
     Menu,
     X,
     ShieldAlert,
-    // FIX: LucideIcon type ko import kiya gaya
     LucideIcon 
 } from 'lucide-react';
-// NOTE: Make sure aapki '../types' file mein UserData mein teamCount field ho.
+
+// === FIX 1: Ab yahan se types import ho rahe hain. Duplicate local definitions hata di gayi hain.
 import { UserData, NotificationState } from '../types'; 
-
-// === TYPESCRIPT FIX & ENHANCEMENT (UserData interface should be updated in '../types') ===
-interface UserData {
-    email: string;
-    balance: number;
-    isAdmin: boolean;
-    teamCount?: number; 
-    referralCount?: number;
-}
-
-interface NotificationState {
-    type: 'success' | 'error';
-    msg: string;
-}
-// === END of temporary type definitions ===
-
+// NOTE: Zaroor check karein ki ../types file mein UserData aur NotificationState updated hain.
+// =========================================================================================
 
 // Layout props
 interface LayoutProps {
@@ -47,10 +33,10 @@ interface LayoutProps {
 interface NavBtnProps {
     active: boolean;
     onClick: () => void;
-    // FIX: icon prop ka type ab LucideIcon hai, jo TS2322 error ko solve karta hai
+    // FIX 2: LucideIcon type use kiya gaya
     icon: LucideIcon; 
     label: string;
-    children?: React.ReactNode; // To display count/badge
+    children?: React.ReactNode; 
 }
 
 // NavBtn component
@@ -83,7 +69,6 @@ const Layout: React.FC<LayoutProps> = ({
     children,
 }) => {
     
-    // Function to handle navigation and close sidebar on mobile
     const handleNavClick = (page: string) => {
         setCurrentPage(page);
         setSidebarOpen(false);
