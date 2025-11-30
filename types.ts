@@ -20,16 +20,57 @@ export interface UserData {
     referralClicks?: number;
 }
 
-export interface Transaction {
-    id: string;
-    userId: string;
-    userEmail: string;
-    type: 'deposit' | 'withdraw';
-    amount: number;
-    address?: string;
-    status: 'pending' | 'approved' | 'rejected';
-    createdAt: any;
+export interface UserData {
+  email: string;
+  balance: number;
+  referralCode: string;
+  referralCount: number;
+  team: string[];
+  isAdmin: boolean;
 }
+
+export interface NotificationState {
+  type: "success" | "error";
+  msg: string;
+}
+export const getRefFromUrl = () => {
+  const params = new URLSearchParams(window.location.search);
+  return params.get("ref");
+};
+
+export const registerUser = (email: string) => {
+
+  const ref = getRefFromUrl();
+
+  let users: any = JSON.parse(localStorage.getItem("USERS") || "[]");
+
+  const referralCode = "REF" + Math.floor(Math.random() * 1000000);
+
+  const newUser = {
+    email,
+    balance: 0,
+    referralCode,
+    referralCount: 0,
+    team: [],
+    isAdmin: false
+  };
+
+  // ✅ Add referral logic
+  if (ref) {
+    const refUser = users.find((u:any)=>u.referralCode === ref);
+
+    if (refUser) {
+      refUser.team.push(email);
+      refUser.referralCount += 1;
+    }
+  }
+
+  users.push(newUser);
+  localStorage.setItem("USERS", JSON.stringify(users));
+
+  return newUser;
+};
+
 
 export interface NotificationState {
     msg: string;

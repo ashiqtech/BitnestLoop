@@ -764,6 +764,74 @@ export default function App() {
                 showNotification={showNotification}
                 isDemo={isDemo}
             />}
-        </Layout>
+        </Layout>import React, { useEffect, useState } from "react";
+import Layout from "./components/Layout";
+import { registerUser } from "./referral";
+import { UserData } from "./types";
+
+export default function App() {
+
+  const [user, setUser] = useState<UserData | null>(null);
+  const [currentPage,setCurrentPage] = useState("home");
+  const [sidebarOpen,setSidebarOpen] = useState(false);
+
+  useEffect(() => {
+
+    let saved = localStorage.getItem("CURRENT_USER");
+
+    if (!saved) {
+
+      const email = "user"+Math.floor(Math.random()*10000)+"@mail.com";
+
+      const newUser = registerUser(email);
+
+      localStorage.setItem("CURRENT_USER",JSON.stringify(newUser));
+
+      setUser(newUser);
+
+    } else {
+      setUser(JSON.parse(saved));
+    }
+
+  },[]);
+
+
+  if(!user) return <>Loading...</>;
+
+  return (
+    <Layout
+      userData={user}
+      currentPage={currentPage}
+      setCurrentPage={setCurrentPage}
+      sidebarOpen={sidebarOpen}
+      setSidebarOpen={setSidebarOpen}
+      onLogout={()=>localStorage.clear()}
+      notification={null}
+    >
+
+      <h2>Referral Code:</h2>
+      <b>
+        {user.referralCode}
+      </b>
+
+      <h2>Team Members:</h2>
+      <ul>
+        {user.team.map((m)=>(
+          <li key={m}>{m}</li>
+        ))}
+      </ul>
+
+      <h3>Total Referrals: {user.referralCount}</h3>
+
+      <h4>Your Referral Link:</h4>
+      <a>
+        {window.location.origin+"?ref="+user.referralCode}
+      </a>
+
+    </Layout>
+  );
+
+}
+
     );
 }
