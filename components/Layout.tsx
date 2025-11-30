@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { UserData, NotificationState } from '../types';
 
+// Layout props
 interface LayoutProps {
     userData: UserData;
     currentPage: string;
@@ -23,19 +24,31 @@ interface LayoutProps {
     children?: React.ReactNode; // fixed
 }
 
+// Nav button props
+interface NavBtnProps {
+    active: boolean;
+    onClick: () => void;
+    icon: React.ComponentType<{ size?: number }>;
+    label: string;
 }
 
-const NavBtn = ({ active, onClick, icon: Icon, label }: any) => (
+// Nav button component
+const NavBtn: React.FC<NavBtnProps> = ({ active, onClick, icon: Icon, label }) => (
     <button 
         onClick={onClick} 
-        className={`flex items-center gap-3 w-full p-3 rounded-xl transition font-medium ${active ? 'bg-green-500 text-black shadow-[0_0_15px_rgba(34,197,94,0.4)]' : 'text-gray-400 hover:bg-gray-800 hover:text-white'}`}
+        className={`flex items-center gap-3 w-full p-3 rounded-xl transition font-medium ${
+            active 
+            ? 'bg-green-500 text-black shadow-[0_0_15px_rgba(34,197,94,0.4)]' 
+            : 'text-gray-400 hover:bg-gray-800 hover:text-white'
+        }`}
     >
         <Icon size={20} />
         <span>{label}</span>
     </button>
 );
 
-export default function Layout({ 
+// Layout component
+const Layout: React.FC<LayoutProps> = ({ 
     userData, 
     currentPage, 
     setCurrentPage, 
@@ -44,12 +57,15 @@ export default function Layout({
     onLogout, 
     notification,
     children 
-}: LayoutProps) {
+}) => {
     return (
         <div className="min-h-screen bg-gray-900 text-white font-sans selection:bg-green-500 selection:text-black">
+            
             {/* Notification Toast */}
             {notification && (
-                <div className={`fixed top-4 left-1/2 transform -translate-x-1/2 z-50 px-6 py-3 rounded-full shadow-lg font-bold animate-bounce flex items-center gap-2 ${notification.type === 'error' ? 'bg-red-600' : 'bg-green-500 text-black'}`}>
+                <div className={`fixed top-4 left-1/2 transform -translate-x-1/2 z-50 px-6 py-3 rounded-full shadow-lg font-bold animate-bounce flex items-center gap-2 ${
+                    notification.type === 'error' ? 'bg-red-600' : 'bg-green-500 text-black'
+                }`}>
                     {notification.type === 'error' && <ShieldAlert size={18} />}
                     {notification.msg}
                 </div>
@@ -73,7 +89,7 @@ export default function Layout({
                             Admin
                         </button>
                     )}
-                     <div className="bg-green-500 text-black px-4 py-1.5 rounded-full font-bold text-sm">
+                    <div className="bg-green-500 text-black px-4 py-1.5 rounded-full font-bold text-sm">
                         {userData.email.split('@')[0]}
                     </div>
                 </div>
@@ -91,7 +107,7 @@ export default function Layout({
                             <NavBtn active={currentPage === 'wallet'} onClick={() => {setCurrentPage('wallet'); setSidebarOpen(false);}} icon={Wallet} label="Wallet" />
                         </nav>
                         <div className="p-4 border-t border-gray-800">
-                             <button onClick={onLogout} className="flex items-center gap-3 text-red-400 hover:text-red-300 w-full p-3 rounded-lg transition hover:bg-red-900/20">
+                            <button onClick={onLogout} className="flex items-center gap-3 text-red-400 hover:text-red-300 w-full p-3 rounded-lg transition hover:bg-red-900/20">
                                 <LogOut size={20} />
                                 <span>Logout</span>
                             </button>
@@ -111,4 +127,6 @@ export default function Layout({
             )}
         </div>
     );
-}
+};
+
+export default Layout;
