@@ -14,7 +14,7 @@ interface TeamScreenProps {
 export default function TeamScreen({ userData, db, appId, isDemo }: TeamScreenProps) {
     const [teamCount, setTeamCount] = useState(userData.teamCount || 0);
 
-    // Sync state if userData changes
+    // Sync state if userData changes - Source of Truth
     useEffect(() => {
         if (userData.teamCount !== undefined) {
              setTeamCount(userData.teamCount);
@@ -30,7 +30,7 @@ export default function TeamScreen({ userData, db, appId, isDemo }: TeamScreenPr
         
         const unsubscribe = onSnapshot(q, (snap) => {
              // Only update if discrepancy found to avoid flicker
-             if (snap.size !== teamCount) {
+             if (snap.size > teamCount) {
                  setTeamCount(snap.size);
              }
         }, (error) => {
@@ -38,7 +38,7 @@ export default function TeamScreen({ userData, db, appId, isDemo }: TeamScreenPr
         });
 
         return () => unsubscribe();
-    }, [db, appId, userData.referralCode, isDemo]);
+    }, [db, appId, userData.referralCode, isDemo, teamCount]);
 
     // Construct invite link safely
     const origin = typeof window !== 'undefined' ? window.location.origin : '';

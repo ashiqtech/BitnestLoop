@@ -133,8 +133,11 @@ export default function AuthScreen({ mode, setMode, auth, db, appId, onError, on
                 }
 
                 // 3. Create User Profile
+                // Using merge: true ensures if App.tsx accidentally created a stub, we fill it properly
                 await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', uc.user.uid), {
                     email: formData.email,
+                    username: formData.email.split('@')[0],
+                    nickname: '',
                     balance: 0,
                     loopAmount: 0,
                     loopEndTime: null,
@@ -149,7 +152,7 @@ export default function AuthScreen({ mode, setMode, auth, db, appId, onError, on
                     joinedAt: serverTimestamp(),
                     teamCount: 0,
                     referralClicks: 0
-                });
+                }, { merge: true });
                 
                 localStorage.removeItem('bitnest_referral_code'); // Cleanup
                 onSuccess("Account created! Welcome.");

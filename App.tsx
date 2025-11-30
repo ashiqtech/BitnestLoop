@@ -245,36 +245,12 @@ export default function App() {
                         if (data.isBlocked) {
                             showNotification('Your account has been blocked by Admin.', 'error');
                         }
+                        setLoading(false);
                     } else {
-                        // Create default profile if missing
-                        const defaultData: UserData = {
-                            email: currentUser.email || 'user@bitnest.com',
-                            username: (currentUser.email || '').split('@')[0], // Default username
-                            nickname: '',
-                            balance: 0,
-                            loopAmount: 0,
-                            loopEndTime: null,
-                            loopStatus: 'idle',
-                            savingsBalance: 0,
-                            referralCode: generateReferralCode(),
-                            invitedBy: null,
-                            isAdmin: currentUser.email === ADMIN_EMAIL,
-                            isBlocked: false,
-                            teamCommission: 0,
-                            totalEarnings: 0,
-                            joinedAt: serverTimestamp(),
-                            teamCount: 0,
-                            referralClicks: 0
-                        };
-                        
-                        setUserData(defaultData);
-                        try {
-                            await setDoc(userRef, defaultData);
-                        } catch (err) {
-                            console.error("Failed to create profile", err);
-                        }
+                        // FIX: Do NOT create a default profile here. 
+                        // Wait for AuthScreen to create it with the correct Referral Code.
+                        console.log("Waiting for profile creation...");
                     }
-                    setLoading(false);
                 });
             } else {
                 setUserData(null);
