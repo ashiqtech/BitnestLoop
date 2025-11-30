@@ -18,7 +18,9 @@ export default function TeamScreen({ userData, db, appId, isDemo }: TeamScreenPr
         if (isDemo) {
             // Check local storage for simulated team count
             try {
-                const demoCount = localStorage.getItem(`bitnest_demo_team_${userData.referralCode}`);
+                // Ensure we use the exact same uppercase format as AuthScreen
+                const cleanCode = userData.referralCode.trim().toUpperCase();
+                const demoCount = localStorage.getItem(`bitnest_demo_team_${cleanCode}`);
                 setTeamCount(demoCount ? parseInt(demoCount) : 0);
             } catch (e) {
                 setTeamCount(0);

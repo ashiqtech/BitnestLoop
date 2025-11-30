@@ -42,17 +42,17 @@ export default function AdminPanel({
                 {...currentUser, id: 'demo-admin'},
                 {
                     email: 'user2@demo.com',
-                    balance: 450,
-                    loopAmount: 100,
-                    loopEndTime: new Date().getTime() + 100000,
-                    loopStatus: 'active',
-                    savingsBalance: 50,
+                    balance: 0,
+                    loopAmount: 0,
+                    loopEndTime: null,
+                    loopStatus: 'idle',
+                    savingsBalance: 0,
                     referralCode: 'USER2',
                     invitedBy: null,
                     isAdmin: false,
                     isBlocked: false,
                     teamCommission: 0,
-                    totalEarnings: 45,
+                    totalEarnings: 0,
                     joinedAt: new Date(),
                     id: 'demo-user-2'
                 }

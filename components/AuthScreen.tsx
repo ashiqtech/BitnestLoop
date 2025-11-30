@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { createUserWithEmailAndPassword, signInWithEmailAndPassword, sendPasswordResetEmail, Auth } from 'firebase/auth';
+import { createUserWithEmailAndPassword, signInWithEmailAndPassword, sendPasswordResetEmail, Auth, setPersistence, browserLocalPersistence, browserSessionPersistence } from 'firebase/auth';
 import { Firestore, doc, setDoc, query, collection, where, getDocs, serverTimestamp } from 'firebase/firestore';
 import { SUPPORT_EMAIL, ADMIN_EMAIL } from '../constants';
 import { NotificationState } from '../types';
@@ -14,13 +14,14 @@ interface AuthScreenProps {
     onSuccess: (msg: string) => void;
     notification: NotificationState | null;
     isDemo: boolean;
-    onMockLogin: (email: string) => void;
+    onMockLogin: (email: string, remember: boolean) => void;
 }
 
 const generateReferralCode = () => 'BN' + Math.floor(100000 + Math.random() * 900000);
 
 export default function AuthScreen({ mode, setMode, auth, db, appId, onError, onSuccess, notification, isDemo, onMockLogin }: AuthScreenProps) {
     const [formData, setFormData] = useState({ email: '', password: '', confirmPassword: '', referralCode: '' });
+    const [rememberMe, setRememberMe] = useState(true);
     const [loading, setLoading] = useState(false);
 
     // Auto-fill referral code from URL
@@ -53,17 +54,18 @@ export default function AuthScreen({ mode, setMode, auth, db, appId, onError, on
 
                     // Increment Demo Team Count if referral code exists
                     if (formData.referralCode) {
-                        const key = `bitnest_demo_team_${formData.referralCode}`;
+                        const cleanCode = formData.referralCode.trim().toUpperCase();
+                        const key = `bitnest_demo_team_${cleanCode}`;
                         const current = parseInt(localStorage.getItem(key) || '0');
                         localStorage.setItem(key, (current + 1).toString());
                     }
 
-                    onMockLogin(formData.email);
+                    onMockLogin(formData.email, rememberMe);
                 } else if (mode === 'forgot') {
                     onSuccess("Reset link sent");
                     setMode('signin');
                 } else {
-                    onMockLogin(formData.email);
+                    onMockLogin(formData.email, rememberMe);
                 }
             }, 1000);
             return;
@@ -72,6 +74,9 @@ export default function AuthScreen({ mode, setMode, auth, db, appId, onError, on
         // --- Real Firebase Logic ---
         try {
             if (!auth || !db) throw new Error("Connection failed");
+
+            // Set Persistence
+            await setPersistence(auth, rememberMe ? browserLocalPersistence : browserSessionPersistence);
 
             if (mode === 'signup') {
                 if (formData.password !== formData.confirmPassword) throw new Error("Passwords do not match");
@@ -83,7 +88,7 @@ export default function AuthScreen({ mode, setMode, auth, db, appId, onError, on
                 // Check referral
                 let inviterCode = null;
                 if (formData.referralCode) {
-                    // Normalize code to uppercase just in case
+                    // Normalize code to uppercase
                     const cleanCode = formData.referralCode.trim().toUpperCase();
                     const q = query(collection(db, 'artifacts', appId, 'public', 'data', 'users'), where('referralCode', '==', cleanCode));
                     const snap = await getDocs(q);
@@ -175,6 +180,19 @@ export default function AuthScreen({ mode, setMode, auth, db, appId, onError, on
                                 onChange={e => setFormData({...formData, referralCode: e.target.value})}
                             />
                         </>
+                    )}
+
+                    {mode !== 'forgot' && (
+                        <div className="flex items-center gap-2 text-sm text-gray-400">
+                            <input 
+                                type="checkbox" 
+                                id="remember" 
+                                checked={rememberMe}
+                                onChange={e => setRememberMe(e.target.checked)}
+                                className="rounded bg-gray-800 border-gray-700 text-green-500 focus:ring-green-500 accent-green-500 w-4 h-4 cursor-pointer" 
+                            />
+                            <label htmlFor="remember" className="cursor-pointer select-none">Remember login</label>
+                        </div>
                     )}
 
                     <button 

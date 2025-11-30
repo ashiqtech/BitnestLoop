@@ -96,8 +96,7 @@ export default function App() {
     const auth = useMemo(() => {
         if (!app) return null;
         const authInstance = getAuth(app);
-        // Ensure persistence is set
-        setPersistence(authInstance, browserLocalPersistence).catch(console.error);
+        // Persistence is handled dynamically in AuthScreen for Real Mode
         return authInstance;
     }, [app]);
 
@@ -112,7 +111,7 @@ export default function App() {
     };
 
     // --- Mock Auth Logic for Demo Mode ---
-    const handleMockLogin = (email: string, showNotify: boolean = true) => {
+    const handleMockLogin = (email: string, remember: boolean = true, showNotify: boolean = true) => {
         const mockUser = { uid: 'demo-user-' + email.replace(/[^a-zA-Z0-9]/g, ''), email: email };
         
         // Retrieve stored data or create default
@@ -124,17 +123,17 @@ export default function App() {
 
         const defaultMockData: UserData = {
             email: email,
-            balance: 1000,
+            balance: 0,
             loopAmount: 0,
             loopEndTime: null,
             loopStatus: 'idle',
-            savingsBalance: 500,
+            savingsBalance: 0,
             referralCode: 'BN' + Math.floor(100000 + Math.random() * 900000),
             invitedBy: null,
             isAdmin: email.toLowerCase() === ADMIN_EMAIL.toLowerCase(),
             isBlocked: false,
-            teamCommission: 50,
-            totalEarnings: 120,
+            teamCommission: 0,
+            totalEarnings: 0,
             joinedAt: new Date().toISOString()
         };
         
@@ -144,8 +143,16 @@ export default function App() {
         setUserData(finalData);
         setLoading(false);
         
-        // Save session
-        localStorage.setItem('bitnest_demo_session', email);
+        // Save session based on Remember Me
+        if (remember) {
+            localStorage.setItem('bitnest_demo_session', email);
+            sessionStorage.removeItem('bitnest_demo_session');
+        } else {
+            sessionStorage.setItem('bitnest_demo_session', email);
+            localStorage.removeItem('bitnest_demo_session');
+        }
+        
+        // Always save user data to localStorage so it persists between sessions even if login session expires
         localStorage.setItem(`bitnest_data_${email}`, JSON.stringify(finalData));
         
         if (showNotify) showNotification('Signed in successfully');
@@ -153,11 +160,14 @@ export default function App() {
 
     // --- Auth & Profile Sync ---
     useEffect(() => {
-        // Persistence Logic
+        // Persistence Logic for Demo
         if (isDemo) {
-            const savedSession = localStorage.getItem('bitnest_demo_session');
+            const localSession = localStorage.getItem('bitnest_demo_session');
+            const sessionSession = sessionStorage.getItem('bitnest_demo_session');
+            const savedSession = localSession || sessionSession;
+
             if (savedSession) {
-                handleMockLogin(savedSession, false);
+                handleMockLogin(savedSession, !!localSession, false);
             } else {
                 setLoading(false);
             }
@@ -623,6 +633,7 @@ export default function App() {
     const handleLogout = () => {
         if (isDemo) {
             localStorage.removeItem('bitnest_demo_session');
+            sessionStorage.removeItem('bitnest_demo_session');
             setUser(null);
             setUserData(null);
             showNotification('Logged out');
