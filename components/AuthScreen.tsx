@@ -24,36 +24,57 @@ export default function AuthScreen({ mode, setMode, auth, db, appId, onError, on
     const [loading, setLoading] = useState(false);
     const [isReferralLocked, setIsReferralLocked] = useState(false);
 
-    // Auto-fill referral code from URL and Track Clicks
+    // Auto-fill referral code from URL/LocalStorage and Track Clicks
     useEffect(() => {
         const params = new URLSearchParams(window.location.search);
-        const refCode = params.get('ref');
+        const refParam = params.get('ref');
         
-        if (refCode) {
-            const cleanCode = refCode.trim().toUpperCase();
-            setFormData(prev => ({ ...prev, referralCode: cleanCode }));
-            setIsReferralLocked(true);
+        let finalCode = '';
+
+        // STEP 1: Check URL Parameter
+        if (refParam) {
+            finalCode = refParam.trim().toUpperCase();
+            
+            // Save to LocalStorage (Persistence)
+            localStorage.setItem('bitnest_referral_code', finalCode);
+            
+            // Clean URL (Remove ?ref=XYZ)
+            const newUrl = window.location.protocol + "//" + window.location.host + window.location.pathname;
+            window.history.replaceState({path: newUrl}, '', newUrl);
+
+            // Switch to Signup mode if a code is present
             if (mode === 'signin') setMode('signup');
+        } 
+        // STEP 2: Check LocalStorage if URL param is missing
+        else {
+            const storedCode = localStorage.getItem('bitnest_referral_code');
+            if (storedCode) {
+                finalCode = storedCode;
+            }
+        }
+
+        // Update State
+        if (finalCode) {
+            setFormData(prev => ({ ...prev, referralCode: finalCode }));
+            setIsReferralLocked(true);
 
             // --- TRACK REFERRAL CLICK ---
             const trackClick = async () => {
                 // Prevent duplicate counting for this browser session
-                const storageKey = `bitnest_click_${cleanCode}`;
+                const storageKey = `bitnest_click_${finalCode}`;
                 if (sessionStorage.getItem(storageKey)) return;
                 
                 sessionStorage.setItem(storageKey, 'true');
 
                 if (isDemo) {
                      // Demo Mode: Update click count in local storage
-                     const key = `bitnest_demo_clicks_${cleanCode}`;
+                     const key = `bitnest_demo_clicks_${finalCode}`;
                      const current = parseInt(localStorage.getItem(key) || '0');
                      localStorage.setItem(key, (current + 1).toString());
                 } else if (db) {
                      // Real Mode: Find referrer and increment clicks
-                     // Note: This relies on DB rules permitting this update, or public access.
-                     // Best effort for client-side app.
                      try {
-                         const q = query(collection(db, 'artifacts', appId, 'public', 'data', 'users'), where('referralCode', '==', cleanCode));
+                         const q = query(collection(db, 'artifacts', appId, 'public', 'data', 'users'), where('referralCode', '==', finalCode));
                          const snap = await getDocs(q);
                          if (!snap.empty) {
                              const userDoc = snap.docs[0];
@@ -88,7 +109,9 @@ export default function AuthScreen({ mode, setMode, auth, db, appId, onError, on
                          return;
                     }
 
-                    const invitedBy = formData.referralCode ? formData.referralCode.trim().toUpperCase() : undefined;
+                    // Use LocalStorage code as fallback
+                    const storedCode = localStorage.getItem('bitnest_referral_code');
+                    const invitedBy = formData.referralCode ? formData.referralCode.trim().toUpperCase() : (storedCode || undefined);
                     
                     onMockLogin(formData.email, rememberMe, true, invitedBy);
                 } else if (mode === 'forgot') {
@@ -115,12 +138,15 @@ export default function AuthScreen({ mode, setMode, auth, db, appId, onError, on
                 const uc = await createUserWithEmailAndPassword(auth, formData.email, formData.password);
                 const isAdmin = formData.email.toLowerCase() === ADMIN_EMAIL.toLowerCase();
 
+                // Determine final inviter code (Form > LocalStorage)
                 let inviterCode = null;
-                if (formData.referralCode) {
-                    inviterCode = formData.referralCode.trim().toUpperCase();
+                const storedCode = localStorage.getItem('bitnest_referral_code');
+                const rawCode = formData.referralCode || storedCode;
+
+                if (rawCode) {
+                    inviterCode = rawCode.trim().toUpperCase();
                     
                     // --- DIRECT INCREMENT STRATEGY FOR REAL MODE SIGNUPS ---
-                    // Try to find the inviter and increment their count immediately
                     try {
                         const q = query(collection(db, 'artifacts', appId, 'public', 'data', 'users'), where('referralCode', '==', inviterCode));
                         const snap = await getDocs(q);
@@ -135,6 +161,7 @@ export default function AuthScreen({ mode, setMode, auth, db, appId, onError, on
                     }
                 }
 
+                // STEP 3: Save to Database
                 await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', uc.user.uid), {
                     email: formData.email,
                     balance: 0,
@@ -143,7 +170,7 @@ export default function AuthScreen({ mode, setMode, auth, db, appId, onError, on
                     loopStatus: 'idle',
                     savingsBalance: 0,
                     referralCode: generateReferralCode(),
-                    invitedBy: inviterCode,
+                    invitedBy: inviterCode, // Saved to DB
                     isAdmin: isAdmin,
                     isBlocked: false,
                     teamCommission: 0,
@@ -152,6 +179,10 @@ export default function AuthScreen({ mode, setMode, auth, db, appId, onError, on
                     teamCount: 0,
                     referralClicks: 0
                 });
+                
+                // Clear referral code from storage after successful signup
+                localStorage.removeItem('bitnest_referral_code');
+                
                 onSuccess("Account created! Welcome.");
             } else if (mode === 'signin') {
                 await signInWithEmailAndPassword(auth, formData.email, formData.password);
