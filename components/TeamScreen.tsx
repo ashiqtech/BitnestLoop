@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { UserData } from '../types';
-import { Firestore, collection, query, where, getDocs } from 'firebase/firestore';
+import { Firestore, collection, query, where, onSnapshot } from 'firebase/firestore';
 import { Users, Wallet, Copy, Share2, Link as LinkIcon } from 'lucide-react';
 import { REFERRAL_TIERS } from '../constants';
 
@@ -29,12 +29,16 @@ export default function TeamScreen({ userData, db, appId, isDemo }: TeamScreenPr
         }
         if (!db) return;
 
-        const fetchTeam = async () => {
-             const q = query(collection(db, 'artifacts', appId, 'public', 'data', 'users'), where('invitedBy', '==', userData.referralCode));
-             const snap = await getDocs(q);
+        // Real-time listener for team count
+        const q = query(collection(db, 'artifacts', appId, 'public', 'data', 'users'), where('invitedBy', '==', userData.referralCode));
+        
+        const unsubscribe = onSnapshot(q, (snap) => {
              setTeamCount(snap.size);
-        };
-        fetchTeam();
+        }, (error) => {
+            console.error("Error fetching team count:", error);
+        });
+
+        return () => unsubscribe();
     }, [db, appId, userData.referralCode, isDemo]);
 
     // Construct invite link safely
