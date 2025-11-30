@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { initializeApp } from 'firebase/app';
+import firebase from 'firebase/compat/app';
 import { 
     getAuth, 
     signInWithCustomToken, 
@@ -88,8 +88,12 @@ export default function App() {
     const app = useMemo(() => {
         if (!isConfigValid) return null;
         try {
-            return initializeApp(firebaseConfig);
-        } catch (e) {
+            // Use compat initializeApp which is robust against module resolution issues
+            return firebase.initializeApp(firebaseConfig);
+        } catch (e: any) {
+            if (e.code === 'app/duplicate-app') {
+                return firebase.app();
+            }
             console.error("Firebase init failed:", e);
             return null;
         }

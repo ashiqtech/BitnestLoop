@@ -24,144 +24,115 @@ export default function AuthScreen({ mode, setMode, auth, db, appId, onError, on
     const [loading, setLoading] = useState(false);
     const [isReferralLocked, setIsReferralLocked] = useState(false);
 
-    // Auto-fill referral code from URL/LocalStorage and Track Clicks
+    // --- STEP 1: CAPTURE REFERRAL CODE ---
     useEffect(() => {
-        const params = new URLSearchParams(window.location.search);
-        const refParam = params.get('ref');
-        
-        let finalCode = '';
+        const initReferral = async () => {
+            const params = new URLSearchParams(window.location.search);
+            const urlRef = params.get('ref');
+            let finalCode = '';
 
-        // STEP 1: Check URL Parameter
-        if (refParam) {
-            finalCode = refParam.trim().toUpperCase();
-            
-            // Save to LocalStorage (Persistence)
-            localStorage.setItem('bitnest_referral_code', finalCode);
-            
-            // Clean URL (Remove ?ref=XYZ)
-            const newUrl = window.location.protocol + "//" + window.location.host + window.location.pathname;
-            window.history.replaceState({path: newUrl}, '', newUrl);
-
-            // Switch to Signup mode if a code is present
-            if (mode === 'signin') setMode('signup');
-        } 
-        // STEP 2: Check LocalStorage if URL param is missing
-        else {
-            const storedCode = localStorage.getItem('bitnest_referral_code');
-            if (storedCode) {
-                finalCode = storedCode;
-            }
-        }
-
-        // Update State
-        if (finalCode) {
-            setFormData(prev => ({ ...prev, referralCode: finalCode }));
-            setIsReferralLocked(true);
-
-            // --- TRACK REFERRAL CLICK ---
-            const trackClick = async () => {
-                // Prevent duplicate counting for this browser session
-                const storageKey = `bitnest_click_${finalCode}`;
-                if (sessionStorage.getItem(storageKey)) return;
+            // A. Check URL
+            if (urlRef) {
+                finalCode = urlRef.trim().toUpperCase();
+                localStorage.setItem('bitnest_referral_code', finalCode);
                 
-                sessionStorage.setItem(storageKey, 'true');
+                // Clean URL
+                const newUrl = window.location.protocol + "//" + window.location.host + window.location.pathname;
+                window.history.replaceState({path: newUrl}, '', newUrl);
+                
+                // Force Signup Mode
+                setMode('signup');
+            } 
+            // B. Check Storage if URL is empty
+            else {
+                const stored = localStorage.getItem('bitnest_referral_code');
+                if (stored) finalCode = stored;
+            }
 
-                if (isDemo) {
-                     // Demo Mode: Update click count in local storage
-                     const key = `bitnest_demo_clicks_${finalCode}`;
-                     const current = parseInt(localStorage.getItem(key) || '0');
-                     localStorage.setItem(key, (current + 1).toString());
-                } else if (db) {
-                     // Real Mode: Find referrer and increment clicks
-                     try {
-                         const q = query(collection(db, 'artifacts', appId, 'public', 'data', 'users'), where('referralCode', '==', finalCode));
-                         const snap = await getDocs(q);
-                         if (!snap.empty) {
-                             const userDoc = snap.docs[0];
-                             await updateDoc(userDoc.ref, {
-                                 referralClicks: increment(1)
-                             });
-                         }
-                     } catch (e) {
-                         console.warn("Could not track click (likely permission issue)", e);
-                     }
+            // C. Update State & Lock
+            if (finalCode) {
+                setFormData(prev => ({ ...prev, referralCode: finalCode }));
+                setIsReferralLocked(true);
+                
+                // Track Click (Once per session)
+                const storageKey = `bitnest_click_${finalCode}`;
+                if (!sessionStorage.getItem(storageKey)) {
+                    sessionStorage.setItem(storageKey, 'true');
+                    
+                    if (isDemo) {
+                        const key = `bitnest_demo_clicks_${finalCode}`;
+                        const current = parseInt(localStorage.getItem(key) || '0');
+                        localStorage.setItem(key, (current + 1).toString());
+                    } else if (db) {
+                        try {
+                            const q = query(collection(db, 'artifacts', appId, 'public', 'data', 'users'), where('referralCode', '==', finalCode));
+                            const snap = await getDocs(q);
+                            if (!snap.empty) {
+                                await updateDoc(snap.docs[0].ref, { referralClicks: increment(1) });
+                            }
+                        } catch (e) { console.warn("Click tracking failed", e); }
+                    }
                 }
-            };
-            trackClick();
-        }
-    }, [mode, setMode, isDemo, db, appId]);
+            }
+        };
+        initReferral();
+    }, [isDemo, db, appId, setMode]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setLoading(true);
         
-        // --- Demo Mode Logic ---
-        if (isDemo) {
-            setTimeout(() => {
-                setLoading(false);
-                if (mode === 'signup') {
-                    if (formData.password !== formData.confirmPassword) {
-                        onError("Passwords do not match");
-                        return;
-                    }
-                    if (formData.password.length < 6) {
-                         onError("Password must be at least 6 characters");
-                         return;
-                    }
-
-                    // Use LocalStorage code as fallback
-                    const storedCode = localStorage.getItem('bitnest_referral_code');
-                    const invitedBy = formData.referralCode ? formData.referralCode.trim().toUpperCase() : (storedCode || undefined);
-                    
-                    onMockLogin(formData.email, rememberMe, true, invitedBy);
-                } else if (mode === 'forgot') {
-                    onSuccess("Reset link sent");
-                    setMode('signin');
-                } else {
-                    onMockLogin(formData.email, rememberMe, true);
-                }
-            }, 1000);
-            return;
-        }
-
-        // --- Real Firebase Logic ---
         try {
+            // --- STEP 2: PREPARE DATA ---
+            // Priority: 1. Form Input, 2. LocalStorage, 3. URL (if somehow missed)
+            const storedCode = localStorage.getItem('bitnest_referral_code');
+            const rawInviterCode = formData.referralCode || storedCode || '';
+            const inviterCode = rawInviterCode.trim().toUpperCase();
+
+            // --- DEMO MODE ---
+            if (isDemo) {
+                setTimeout(() => {
+                    setLoading(false);
+                    if (mode === 'signup') {
+                        if (formData.password !== formData.confirmPassword) { onError("Passwords do not match"); return; }
+                        onMockLogin(formData.email, rememberMe, true, inviterCode || undefined);
+                    } else if (mode === 'forgot') {
+                        onSuccess("Reset link sent");
+                        setMode('signin');
+                    } else {
+                        onMockLogin(formData.email, rememberMe, true);
+                    }
+                }, 1000);
+                return;
+            }
+
+            // --- REAL MODE ---
             if (!auth || !db) throw new Error("Connection failed");
 
-            // Set Persistence
             await setPersistence(auth, rememberMe ? browserLocalPersistence : browserSessionPersistence);
 
             if (mode === 'signup') {
                 if (formData.password !== formData.confirmPassword) throw new Error("Passwords do not match");
                 if (formData.password.length < 6) throw new Error("Password must be at least 6 characters");
                 
+                // 1. Create Auth User
                 const uc = await createUserWithEmailAndPassword(auth, formData.email, formData.password);
                 const isAdmin = formData.email.toLowerCase() === ADMIN_EMAIL.toLowerCase();
 
-                // Determine final inviter code (Form > LocalStorage)
-                let inviterCode = null;
-                const storedCode = localStorage.getItem('bitnest_referral_code');
-                const rawCode = formData.referralCode || storedCode;
-
-                if (rawCode) {
-                    inviterCode = rawCode.trim().toUpperCase();
-                    
-                    // --- DIRECT INCREMENT STRATEGY FOR REAL MODE SIGNUPS ---
+                // 2. Increment Referrer Count (If code exists)
+                if (inviterCode) {
                     try {
                         const q = query(collection(db, 'artifacts', appId, 'public', 'data', 'users'), where('referralCode', '==', inviterCode));
                         const snap = await getDocs(q);
                         if (!snap.empty) {
-                            const inviterDoc = snap.docs[0];
-                            await updateDoc(inviterDoc.ref, {
-                                teamCount: increment(1)
-                            });
+                            await updateDoc(snap.docs[0].ref, { teamCount: increment(1) });
                         }
                     } catch (e) {
-                        console.error("Failed to increment referrer count:", e);
+                        console.error("Referral increment error:", e);
                     }
                 }
 
-                // STEP 3: Save to Database
+                // 3. Create User Profile
                 await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', uc.user.uid), {
                     email: formData.email,
                     balance: 0,
@@ -170,7 +141,7 @@ export default function AuthScreen({ mode, setMode, auth, db, appId, onError, on
                     loopStatus: 'idle',
                     savingsBalance: 0,
                     referralCode: generateReferralCode(),
-                    invitedBy: inviterCode, // Saved to DB
+                    invitedBy: inviterCode || null, // <--- CRITICAL: Saving the code
                     isAdmin: isAdmin,
                     isBlocked: false,
                     teamCommission: 0,
@@ -180,14 +151,14 @@ export default function AuthScreen({ mode, setMode, auth, db, appId, onError, on
                     referralClicks: 0
                 });
                 
-                // Clear referral code from storage after successful signup
-                localStorage.removeItem('bitnest_referral_code');
-                
+                localStorage.removeItem('bitnest_referral_code'); // Cleanup
                 onSuccess("Account created! Welcome.");
-            } else if (mode === 'signin') {
+            } 
+            else if (mode === 'signin') {
                 await signInWithEmailAndPassword(auth, formData.email, formData.password);
                 onSuccess("Signed in successfully.");
-            } else if (mode === 'forgot') {
+            } 
+            else if (mode === 'forgot') {
                 await sendPasswordResetEmail(auth, formData.email);
                 onSuccess("Reset link sent to email.");
                 setMode('signin');
