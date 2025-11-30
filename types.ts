@@ -1,5 +1,7 @@
 export interface UserData {
     email: string;
+    username?: string; // New
+    nickname?: string; // New
     balance: number;
     loopAmount: number;
     loopEndTime: number | null;
@@ -7,8 +9,8 @@ export interface UserData {
     loopDuration?: number; // Number of days
     savingsBalance: number;
     lastSavingsClaim?: number;
-    referralCode: string;
-    invitedBy: string | null;
+    referralCode: string; // Acts as inviteCode
+    invitedBy: string | null; // Acts as referredByCode
     isAdmin: boolean;
     isBlocked: boolean;
     teamCommission: number;

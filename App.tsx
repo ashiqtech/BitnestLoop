@@ -51,6 +51,7 @@ import TeamScreen from './components/TeamScreen';
 import WalletScreen from './components/WalletScreen';
 import AdminPanel from './components/AdminPanel';
 import PartnerScreen from './components/PartnerScreen';
+import ProfileScreen from './components/ProfileScreen'; // New Import
 
 export default function App() {
     const [user, setUser] = useState<User | any | null>(null);
@@ -124,6 +125,8 @@ export default function App() {
 
         const defaultMockData: UserData = {
             email: email,
+            username: email.split('@')[0], // Default username
+            nickname: '',
             balance: 0,
             loopAmount: 0,
             loopEndTime: null,
@@ -234,10 +237,6 @@ export default function App() {
                 unsubscribeProfile = onSnapshot(userRef, async (docSnap) => {
                     if (docSnap.exists()) {
                         const data = docSnap.data() as UserData;
-                        
-                        // NOTE: Direct DB teamCount is preferred, but query acts as backup/validation logic removed for performance
-                        // We rely on the stored teamCount which updates on signup
-                        
                         setUserData(data);
                         if (data.isBlocked) {
                             showNotification('Your account has been blocked by Admin.', 'error');
@@ -246,6 +245,8 @@ export default function App() {
                         // Create default profile if missing
                         const defaultData: UserData = {
                             email: currentUser.email || 'user@bitnest.com',
+                            username: (currentUser.email || '').split('@')[0], // Default username
+                            nickname: '',
                             balance: 0,
                             loopAmount: 0,
                             loopEndTime: null,
@@ -773,6 +774,16 @@ export default function App() {
                 onReject={handleRejectTransaction}
             />}
             {currentPage === 'partners' && <PartnerScreen setPage={setCurrentPage} />}
+            {currentPage === 'profile' && <ProfileScreen 
+                userData={userData} 
+                user={user}
+                db={db} 
+                auth={auth}
+                appId={appId} 
+                setPage={setCurrentPage} 
+                showNotification={showNotification}
+                isDemo={isDemo}
+            />}
         </Layout>
     );
 }

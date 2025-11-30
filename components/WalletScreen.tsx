@@ -39,7 +39,7 @@ export default function WalletScreen({
 
     useEffect(() => {
         if (isDemo && mockTransactions) {
-            setMyTransactions(mockTransactions.filter(t => t.userId === user.uid).sort((a,b) => b.createdAt - a.createdAt));
+            setMyTransactions(mockTransactions.filter(t => t.userId === user.uid).sort((a,b) => (b.createdAt < a.createdAt ? -1 : 1))); // Fix sort for demo
             return;
         }
 
@@ -233,7 +233,7 @@ export default function WalletScreen({
                                     </div>
                                     <div>
                                         <p className="font-bold text-sm text-white capitalize">{tx.type}</p>
-                                        <p className="text-xs text-gray-500">{new Date(tx.createdAt?.seconds ? tx.createdAt.seconds * 1000 : tx.createdAt).toLocaleDateString()}</p>
+                                        <p className="text-xs text-gray-500">{new Date(tx.createdAt?.seconds ? tx.createdAt.seconds * 1000 : (typeof tx.createdAt === 'string' ? tx.createdAt : Date.now())).toLocaleDateString()}</p>
                                     </div>
                                 </div>
                                 <div className="text-right">

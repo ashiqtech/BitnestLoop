@@ -119,9 +119,14 @@ const Layout: React.FC<LayoutProps> = ({
                             Admin
                         </button>
                     )}
-                    <div className="bg-green-500 text-black px-4 py-1.5 rounded-full font-bold text-sm whitespace-nowrap overflow-hidden text-ellipsis max-w-[150px]">
-                        {userData.email.split('@')[0]}
-                    </div>
+                    {/* Updated to be clickable for Profile */}
+                    <button 
+                        onClick={() => handleNavClick('profile')}
+                        className="bg-green-500 hover:bg-green-400 text-black px-4 py-1.5 rounded-full font-bold text-sm whitespace-nowrap overflow-hidden text-ellipsis max-w-[150px] transition"
+                        title="Go to Profile"
+                    >
+                        {userData.username || userData.nickname || userData.email.split('@')[0]}
+                    </button>
                 </div>
             </div>
 
