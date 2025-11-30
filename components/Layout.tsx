@@ -20,7 +20,7 @@ interface LayoutProps {
     setSidebarOpen: (open: boolean) => void;
     onLogout: () => void;
     notification: NotificationState | null;
-    children: React.ReactNode;
+    children?: React.ReactNode;
 }
 
 const NavBtn = ({ active, onClick, icon: Icon, label }: any) => (

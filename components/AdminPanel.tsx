@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { UserData, Transaction } from '../types';
 import { Firestore, collection, query, onSnapshot, doc, updateDoc, orderBy } from 'firebase/firestore';
 import { ADMIN_EMAIL } from '../constants';
@@ -32,6 +32,19 @@ export default function AdminPanel({
     const [editLoop, setEditLoop] = useState<number | string>(0);
     const [editSavings, setEditSavings] = useState<number | string>(0);
     const [refreshTrigger, setRefreshTrigger] = useState(0);
+
+    // Calculate Referral Counts Live
+    const referralCounts = useMemo(() => {
+        const counts: Record<string, number> = {};
+        allUsers.forEach(u => {
+            if (u.invitedBy) {
+                // Normalize code just in case
+                const code = u.invitedBy.trim().toUpperCase();
+                counts[code] = (counts[code] || 0) + 1;
+            }
+        });
+        return counts;
+    }, [allUsers]);
 
     // Fetch Users
     useEffect(() => {
@@ -168,6 +181,10 @@ export default function AdminPanel({
                     <p className="text-gray-400 text-xs uppercase">Pending Requests</p>
                     <p className="text-2xl font-bold">{allTransactions.filter(t => t.status === 'pending').length}</p>
                 </div>
+                <div className="bg-gray-800 p-4 rounded-lg border-l-4 border-purple-500">
+                    <p className="text-gray-400 text-xs uppercase">Total Referrals</p>
+                    <p className="text-2xl font-bold">{allUsers.filter(u => u.invitedBy).length}</p>
+                </div>
             </div>
 
             {/* Tabs */}
@@ -193,6 +210,7 @@ export default function AdminPanel({
                             <tr>
                                 <th className="p-4">User Details</th>
                                 <th className="p-4">Assets</th>
+                                <th className="p-4">Invites</th>
                                 <th className="p-4">Ref/Inviter</th>
                                 <th className="p-4">Status</th>
                                 <th className="p-4">Actions</th>
@@ -213,6 +231,12 @@ export default function AdminPanel({
                                             <span className="text-green-400">Wallet: ${u.balance?.toFixed(2)}</span>
                                             <span className="text-yellow-500">Loop: ${u.loopAmount?.toFixed(2)}</span>
                                             <span className="text-blue-400">Savings: ${u.savingsBalance?.toFixed(2)}</span>
+                                        </div>
+                                    </td>
+                                    <td className="p-4">
+                                        <div className="flex items-center gap-1 font-bold text-white">
+                                            <span className="bg-gray-700 px-2 py-0.5 rounded text-xs">{referralCounts[u.referralCode] || 0}</span>
+                                            <span className="text-[10px] text-gray-500 font-normal">Refs</span>
                                         </div>
                                     </td>
                                     <td className="p-4 text-xs">

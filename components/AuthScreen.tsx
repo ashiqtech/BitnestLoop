@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword, sendPasswordResetEmail, Auth, setPersistence, browserLocalPersistence, browserSessionPersistence } from 'firebase/auth';
-import { Firestore, doc, setDoc, query, collection, where, getDocs, serverTimestamp } from 'firebase/firestore';
+import { Firestore, doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { SUPPORT_EMAIL, ADMIN_EMAIL } from '../constants';
 import { NotificationState } from '../types';
+import { CheckCircle2 } from 'lucide-react';
 
 interface AuthScreenProps {
     mode: 'signin' | 'signup' | 'forgot';
@@ -23,6 +24,7 @@ export default function AuthScreen({ mode, setMode, auth, db, appId, onError, on
     const [formData, setFormData] = useState({ email: '', password: '', confirmPassword: '', referralCode: '' });
     const [rememberMe, setRememberMe] = useState(true);
     const [loading, setLoading] = useState(false);
+    const [isReferralLocked, setIsReferralLocked] = useState(false);
 
     // Auto-fill referral code from URL
     useEffect(() => {
@@ -30,6 +32,7 @@ export default function AuthScreen({ mode, setMode, auth, db, appId, onError, on
         const refCode = params.get('ref');
         if (refCode) {
             setFormData(prev => ({ ...prev, referralCode: refCode }));
+            setIsReferralLocked(true);
             if (mode === 'signin') setMode('signup');
         }
     }, [mode, setMode]);
@@ -166,13 +169,21 @@ export default function AuthScreen({ mode, setMode, auth, db, appId, onError, on
                                 onChange={e => setFormData({...formData, confirmPassword: e.target.value})}
                                 required
                             />
-                            <input 
-                                type="text" 
-                                placeholder="Referral Code (Optional)" 
-                                className="w-full bg-gray-800 border border-gray-700 rounded-lg p-3 text-white focus:border-green-500 outline-none transition-colors"
-                                value={formData.referralCode}
-                                onChange={e => setFormData({...formData, referralCode: e.target.value})}
-                            />
+                            
+                            <div className="relative">
+                                <input 
+                                    type="text" 
+                                    placeholder="Referral Code (Optional)" 
+                                    className={`w-full bg-gray-800 border rounded-lg p-3 text-white outline-none transition-colors ${isReferralLocked ? 'border-green-500/50 bg-green-900/10' : 'border-gray-700 focus:border-green-500'}`}
+                                    value={formData.referralCode}
+                                    onChange={e => setFormData({...formData, referralCode: e.target.value})}
+                                />
+                                {isReferralLocked && (
+                                    <div className="absolute right-3 top-3 text-green-500 flex items-center gap-1 text-xs font-bold bg-gray-900 px-2 rounded">
+                                        <CheckCircle2 size={14} /> Applied
+                                    </div>
+                                )}
+                            </div>
                         </>
                     )}
 
