@@ -16,7 +16,13 @@ export default function TeamScreen({ userData, db, appId, isDemo }: TeamScreenPr
 
     useEffect(() => {
         if (isDemo) {
-            setTeamCount(12); // Fake number for demo
+            // Check local storage for simulated team count
+            try {
+                const demoCount = localStorage.getItem(`bitnest_demo_team_${userData.referralCode}`);
+                setTeamCount(demoCount ? parseInt(demoCount) : 0);
+            } catch (e) {
+                setTeamCount(0);
+            }
             return;
         }
         if (!db) return;
@@ -29,7 +35,9 @@ export default function TeamScreen({ userData, db, appId, isDemo }: TeamScreenPr
         fetchTeam();
     }, [db, appId, userData.referralCode, isDemo]);
 
-    const inviteLink = `${window.location.origin}?ref=${userData.referralCode}`;
+    // Construct invite link safely
+    const origin = typeof window !== 'undefined' ? window.location.origin : '';
+    const inviteLink = `${origin}?ref=${userData.referralCode}`;
 
     const copyCode = () => {
         navigator.clipboard.writeText(userData.referralCode);

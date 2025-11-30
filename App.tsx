@@ -5,6 +5,8 @@ import {
     signInWithCustomToken, 
     onAuthStateChanged, 
     signOut,
+    setPersistence,
+    browserLocalPersistence,
     User,
     Auth
 } from 'firebase/auth';
@@ -64,13 +66,14 @@ export default function App() {
     // Initialize Firebase
     const firebaseConfig = useMemo(() => {
         try {
-            return JSON.parse(window.__firebase_config || '{}');
+            // Check for window variable or environment variable
+            return JSON.parse((window as any).__firebase_config || '{}');
         } catch {
             return {};
         }
     }, []);
     
-    const appId = window.__app_id || 'bitnest-default';
+    const appId = (window as any).__app_id || 'bitnest-default';
     
     // Safety check: ensure apiKey exists
     const isConfigValid = useMemo(() => {
@@ -92,7 +95,10 @@ export default function App() {
 
     const auth = useMemo(() => {
         if (!app) return null;
-        return getAuth(app);
+        const authInstance = getAuth(app);
+        // Ensure persistence is set
+        setPersistence(authInstance, browserLocalPersistence).catch(console.error);
+        return authInstance;
     }, [app]);
 
     const db = useMemo(() => {
@@ -106,8 +112,16 @@ export default function App() {
     };
 
     // --- Mock Auth Logic for Demo Mode ---
-    const handleMockLogin = (email: string) => {
-        const mockUser = { uid: 'demo-user-123', email: email };
+    const handleMockLogin = (email: string, showNotify: boolean = true) => {
+        const mockUser = { uid: 'demo-user-' + email.replace(/[^a-zA-Z0-9]/g, ''), email: email };
+        
+        // Retrieve stored data or create default
+        let storedData = null;
+        try {
+            const saved = localStorage.getItem(`bitnest_data_${email}`);
+            if (saved) storedData = JSON.parse(saved);
+        } catch (e) {}
+
         const defaultMockData: UserData = {
             email: email,
             balance: 1000,
@@ -115,38 +129,47 @@ export default function App() {
             loopEndTime: null,
             loopStatus: 'idle',
             savingsBalance: 500,
-            referralCode: 'BNDEMO',
+            referralCode: 'BN' + Math.floor(100000 + Math.random() * 900000),
             invitedBy: null,
             isAdmin: email.toLowerCase() === ADMIN_EMAIL.toLowerCase(),
             isBlocked: false,
             teamCommission: 50,
             totalEarnings: 120,
-            joinedAt: new Date()
+            joinedAt: new Date().toISOString()
         };
         
+        const finalData = storedData || defaultMockData;
+
         setUser(mockUser);
-        setUserData(defaultMockData);
+        setUserData(finalData);
         setLoading(false);
-        showNotification('Signed in (Demo Mode)');
+        
+        // Save session
+        localStorage.setItem('bitnest_demo_session', email);
+        localStorage.setItem(`bitnest_data_${email}`, JSON.stringify(finalData));
+        
+        if (showNotify) showNotification('Signed in successfully');
     };
 
     // --- Auth & Profile Sync ---
     useEffect(() => {
-        // If Demo mode, skip real auth listener
+        // Persistence Logic
         if (isDemo) {
-            // Simulate checking session
-            setTimeout(() => {
+            const savedSession = localStorage.getItem('bitnest_demo_session');
+            if (savedSession) {
+                handleMockLogin(savedSession, false);
+            } else {
                 setLoading(false);
-            }, 1000);
+            }
             return;
         }
 
         if (!auth || !db) return;
 
         const initAuth = async () => {
-            if (window.__initial_auth_token) {
+            if ((window as any).__initial_auth_token) {
                 try {
-                    await signInWithCustomToken(auth, window.__initial_auth_token);
+                    await signInWithCustomToken(auth, (window as any).__initial_auth_token);
                 } catch (e) {
                     console.error("Auth failed", e);
                 }
@@ -211,6 +234,13 @@ export default function App() {
             if (unsubscribeProfile) unsubscribeProfile();
         };
     }, [auth, db, appId, isDemo]);
+
+    // Save Demo Data on Change
+    useEffect(() => {
+        if (isDemo && userData && user) {
+            localStorage.setItem(`bitnest_data_${user.email}`, JSON.stringify(userData));
+        }
+    }, [userData, isDemo, user]);
 
     // --- Financial Logic ---
 
@@ -278,7 +308,7 @@ export default function App() {
                 loopStatus: 'active',
                 loopDuration: days
             });
-            showNotification('Loop Started (Demo Mode)');
+            showNotification('Loop Started Successfully');
             return;
         }
 
@@ -324,7 +354,7 @@ export default function App() {
                 totalEarnings: userData.totalEarnings + profit,
                 loopDuration: 0
             });
-            showNotification(`Claimed $${totalReturn.toFixed(2)} to Brokerage Wallet (Demo)!`);
+            showNotification(`Claimed $${totalReturn.toFixed(2)} to Brokerage Wallet!`);
             return;
         }
 
@@ -363,7 +393,7 @@ export default function App() {
                 savingsBalance: userData.savingsBalance + amt,
                 lastSavingsClaim: new Date().getTime()
             });
-            showNotification(`Added $${amt} to Savings (Demo Mode)`);
+            showNotification(`Added $${amt} to Savings Box`);
             return;
         }
 
@@ -388,7 +418,7 @@ export default function App() {
         const lastClaim = userData.lastSavingsClaim || 0;
         const oneDay = 86400000; 
 
-        if (now - lastClaim < oneDay && !isDemo) { // Allow claiming in demo for testing
+        if (now - lastClaim < oneDay && !isDemo) { 
             showNotification('You can only claim rewards once every 24 hours.', 'error');
             return;
         }
@@ -402,7 +432,7 @@ export default function App() {
                 totalEarnings: userData.totalEarnings + interest,
                 lastSavingsClaim: now
             });
-            showNotification(`Collected Reward: $${interest.toFixed(2)} (Demo)`);
+            showNotification(`Collected Daily Savings Reward: $${interest.toFixed(2)}`);
             return;
         }
 
@@ -439,7 +469,7 @@ export default function App() {
                 balance: userData.balance + amt,
                 savingsBalance: userData.savingsBalance - amt
             });
-            showNotification(`$${amt} withdrawn to Brokerage Wallet (Demo).`);
+            showNotification(`$${amt} withdrawn to Brokerage Wallet.`);
             return;
         }
 
@@ -469,7 +499,7 @@ export default function App() {
                 createdAt: new Date()
             };
             setMockTransactions([newTx, ...mockTransactions]);
-            showNotification('Deposit request submitted to Admin (Demo)');
+            showNotification('Deposit request submitted to Admin');
             return;
         }
 
@@ -508,7 +538,7 @@ export default function App() {
             setMockTransactions([newTx, ...mockTransactions]);
             // Deduct immediately in demo
             setUserData({...userData!, balance: userData!.balance - amount});
-            showNotification('Withdrawal request submitted (Demo)');
+            showNotification('Withdrawal request submitted');
             return;
         }
 
@@ -539,12 +569,12 @@ export default function App() {
                 t.id === tx.id ? { ...t, status: 'approved' } : t
             ));
             if (tx.type === 'deposit') {
-                 // Find user and update (simulated for current user only in demo for simplicity)
+                 // Update user state if it's the current user
                  if (tx.userId === user.uid) {
                      setUserData({...userData!, balance: userData!.balance + tx.amount});
                  }
             }
-            showNotification('Transaction Approved (Demo)');
+            showNotification('Transaction Approved');
             return;
         }
 
@@ -571,7 +601,7 @@ export default function App() {
                  // Refund
                  setUserData({...userData!, balance: userData!.balance + tx.amount});
             }
-            showNotification('Transaction Rejected (Demo)');
+            showNotification('Transaction Rejected');
             return;
         }
 
@@ -592,6 +622,7 @@ export default function App() {
 
     const handleLogout = () => {
         if (isDemo) {
+            localStorage.removeItem('bitnest_demo_session');
             setUser(null);
             setUserData(null);
             showNotification('Logged out');

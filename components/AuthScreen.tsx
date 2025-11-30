@@ -31,7 +31,7 @@ export default function AuthScreen({ mode, setMode, auth, db, appId, onError, on
             setFormData(prev => ({ ...prev, referralCode: refCode }));
             if (mode === 'signin') setMode('signup');
         }
-    }, []);
+    }, [mode, setMode]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -41,12 +41,26 @@ export default function AuthScreen({ mode, setMode, auth, db, appId, onError, on
         if (isDemo) {
             setTimeout(() => {
                 setLoading(false);
-                if (mode === 'signup' && formData.password !== formData.confirmPassword) {
-                    onError("Passwords do not match");
-                    return;
-                }
-                if (mode === 'forgot') {
-                    onSuccess("Reset link sent (Demo)");
+                if (mode === 'signup') {
+                    if (formData.password !== formData.confirmPassword) {
+                        onError("Passwords do not match");
+                        return;
+                    }
+                    if (formData.password.length < 6) {
+                         onError("Password must be at least 6 characters");
+                         return;
+                    }
+
+                    // Increment Demo Team Count if referral code exists
+                    if (formData.referralCode) {
+                        const key = `bitnest_demo_team_${formData.referralCode}`;
+                        const current = parseInt(localStorage.getItem(key) || '0');
+                        localStorage.setItem(key, (current + 1).toString());
+                    }
+
+                    onMockLogin(formData.email);
+                } else if (mode === 'forgot') {
+                    onSuccess("Reset link sent");
                     setMode('signin');
                 } else {
                     onMockLogin(formData.email);
@@ -69,9 +83,13 @@ export default function AuthScreen({ mode, setMode, auth, db, appId, onError, on
                 // Check referral
                 let inviterCode = null;
                 if (formData.referralCode) {
-                    const q = query(collection(db, 'artifacts', appId, 'public', 'data', 'users'), where('referralCode', '==', formData.referralCode));
+                    // Normalize code to uppercase just in case
+                    const cleanCode = formData.referralCode.trim().toUpperCase();
+                    const q = query(collection(db, 'artifacts', appId, 'public', 'data', 'users'), where('referralCode', '==', cleanCode));
                     const snap = await getDocs(q);
-                    if (!snap.empty) inviterCode = formData.referralCode;
+                    if (!snap.empty) {
+                        inviterCode = cleanCode;
+                    }
                 }
 
                 await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', uc.user.uid), {
