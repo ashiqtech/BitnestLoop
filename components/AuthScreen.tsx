@@ -85,16 +85,10 @@ export default function AuthScreen({ mode, setMode, auth, db, appId, onError, on
                 const uc = await createUserWithEmailAndPassword(auth, formData.email, formData.password);
                 const isAdmin = formData.email.toLowerCase() === ADMIN_EMAIL.toLowerCase();
 
-                // Check referral
+                // Check referral - DIRECT SAVE (Bypass Query to fix permission issues)
                 let inviterCode = null;
                 if (formData.referralCode) {
-                    // Normalize code to uppercase
-                    const cleanCode = formData.referralCode.trim().toUpperCase();
-                    const q = query(collection(db, 'artifacts', appId, 'public', 'data', 'users'), where('referralCode', '==', cleanCode));
-                    const snap = await getDocs(q);
-                    if (!snap.empty) {
-                        inviterCode = cleanCode;
-                    }
+                    inviterCode = formData.referralCode.trim().toUpperCase();
                 }
 
                 await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', uc.user.uid), {
