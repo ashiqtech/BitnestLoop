@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { UserData } from '../types';
 import { Firestore, collection, query, where, onSnapshot } from 'firebase/firestore';
-import { Users, Wallet, Copy, Share2, Link as LinkIcon } from 'lucide-react';
+import { Users, Wallet, Copy, Share2, Link as LinkIcon, MousePointerClick } from 'lucide-react';
 import { REFERRAL_TIERS } from '../constants';
 
 interface TeamScreenProps {
@@ -12,28 +12,27 @@ interface TeamScreenProps {
 }
 
 export default function TeamScreen({ userData, db, appId, isDemo }: TeamScreenProps) {
-    const [teamCount, setTeamCount] = useState(0);
+    const [teamCount, setTeamCount] = useState(userData.teamCount || 0);
+
+    // Sync state if userData changes
+    useEffect(() => {
+        if (userData.teamCount !== undefined) {
+             setTeamCount(userData.teamCount);
+        }
+    }, [userData.teamCount]);
 
     useEffect(() => {
-        if (isDemo) {
-            // Check local storage for simulated team count
-            try {
-                // Ensure we use the exact same uppercase format as AuthScreen
-                const cleanCode = userData.referralCode.trim().toUpperCase();
-                const demoCount = localStorage.getItem(`bitnest_demo_team_${cleanCode}`);
-                setTeamCount(demoCount ? parseInt(demoCount) : 0);
-            } catch (e) {
-                setTeamCount(0);
-            }
-            return;
-        }
+        if (isDemo) return;
         if (!db) return;
 
-        // Real-time listener for team count
+        // Real-time self-correction listener (backup to direct increment)
         const q = query(collection(db, 'artifacts', appId, 'public', 'data', 'users'), where('invitedBy', '==', userData.referralCode));
         
         const unsubscribe = onSnapshot(q, (snap) => {
-             setTeamCount(snap.size);
+             // Only update if discrepancy found to avoid flicker
+             if (snap.size !== teamCount) {
+                 setTeamCount(snap.size);
+             }
         }, (error) => {
             console.error("Error fetching team count:", error);
         });
@@ -80,16 +79,29 @@ export default function TeamScreen({ userData, db, appId, isDemo }: TeamScreenPr
                 </div>
              </div>
 
-             <div className="grid grid-cols-2 gap-4 mb-8">
-                <div className="bg-gray-800 p-6 rounded-xl border border-gray-700 hover:border-blue-500 transition group">
-                    <Users className="text-blue-500 mb-3 group-hover:scale-110 transition" size={32} />
-                    <h3 className="text-3xl font-bold text-white">{teamCount}</h3>
-                    <p className="text-xs text-gray-400 mt-1">Direct Invites</p>
+             <div className="grid grid-cols-3 gap-3 mb-8">
+                 <div className="bg-gray-800 p-4 rounded-xl border border-gray-700 hover:border-yellow-500 transition group text-center">
+                    <div className="flex justify-center">
+                        <MousePointerClick className="text-yellow-500 mb-2 group-hover:scale-110 transition" size={24} />
+                    </div>
+                    <h3 className="text-2xl font-bold text-white">{userData.referralClicks || 0}</h3>
+                    <p className="text-[10px] text-gray-400 mt-1 uppercase tracking-wide">Link Clicks</p>
                 </div>
-                <div className="bg-gray-800 p-6 rounded-xl border border-gray-700 hover:border-green-500 transition group">
-                    <Wallet className="text-green-500 mb-3 group-hover:scale-110 transition" size={32} />
-                    <h3 className="text-3xl font-bold text-white">${userData.teamCommission?.toFixed(2) || '0.00'}</h3>
-                    <p className="text-xs text-gray-400 mt-1">Total Commission</p>
+
+                <div className="bg-gray-800 p-4 rounded-xl border border-gray-700 hover:border-blue-500 transition group text-center">
+                    <div className="flex justify-center">
+                        <Users className="text-blue-500 mb-2 group-hover:scale-110 transition" size={24} />
+                    </div>
+                    <h3 className="text-2xl font-bold text-white">{teamCount}</h3>
+                    <p className="text-[10px] text-gray-400 mt-1 uppercase tracking-wide">Signups</p>
+                </div>
+
+                <div className="bg-gray-800 p-4 rounded-xl border border-gray-700 hover:border-green-500 transition group text-center">
+                    <div className="flex justify-center">
+                        <Wallet className="text-green-500 mb-2 group-hover:scale-110 transition" size={24} />
+                    </div>
+                    <h3 className="text-2xl font-bold text-white">${userData.teamCommission?.toFixed(2) || '0.00'}</h3>
+                    <p className="text-[10px] text-gray-400 mt-1 uppercase tracking-wide">Commission</p>
                 </div>
              </div>
 

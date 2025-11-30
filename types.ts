@@ -15,6 +15,7 @@ export interface UserData {
     totalEarnings: number;
     joinedAt: any;
     teamCount?: number;
+    referralClicks?: number;
 }
 
 export interface Transaction {

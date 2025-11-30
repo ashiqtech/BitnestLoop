@@ -210,8 +210,8 @@ export default function AdminPanel({
                             <tr>
                                 <th className="p-4">User Details</th>
                                 <th className="p-4">Assets</th>
-                                <th className="p-4">Invites</th>
-                                <th className="p-4">Ref/Inviter</th>
+                                <th className="p-4">Ref Stats</th>
+                                <th className="p-4">Invited By</th>
                                 <th className="p-4">Status</th>
                                 <th className="p-4">Actions</th>
                             </tr>
@@ -234,15 +234,21 @@ export default function AdminPanel({
                                         </div>
                                     </td>
                                     <td className="p-4">
-                                        <div className="flex items-center gap-1 font-bold text-white">
-                                            <span className="bg-gray-700 px-2 py-0.5 rounded text-xs">{referralCounts[u.referralCode] || 0}</span>
-                                            <span className="text-[10px] text-gray-500 font-normal">Refs</span>
+                                        <div className="flex items-center gap-3 font-bold text-white">
+                                            <div className="text-center">
+                                                <div className="bg-gray-700 px-2 py-0.5 rounded text-xs">{u.referralClicks || 0}</div>
+                                                <span className="text-[9px] text-gray-500 font-normal">Clicks</span>
+                                            </div>
+                                            <div className="text-center">
+                                                <div className="bg-blue-900 px-2 py-0.5 rounded text-xs text-blue-200">{u.teamCount || 0}</div>
+                                                <span className="text-[9px] text-gray-500 font-normal">Joins</span>
+                                            </div>
                                         </div>
                                     </td>
                                     <td className="p-4 text-xs">
                                         <div className="flex flex-col">
                                             <span className="text-gray-300">Code: {u.referralCode}</span>
-                                            <span className="text-gray-500">By: {u.invitedBy || '-'}</span>
+                                            <span className="text-gray-500">{u.invitedBy ? `By: ${u.invitedBy}` : 'No Inviter'}</span>
                                         </div>
                                     </td>
                                     <td className="p-4">

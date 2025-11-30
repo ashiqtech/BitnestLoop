@@ -12,3 +12,7 @@ export const SAVING_MAX = 4000;
 export const SAVING_DAILY_PERCENT = 0.10; // 10%
 
 export const REFERRAL_TIERS = [0.13, 0.05, 0.03, 0.02, 0.01]; // 13%, 5%, 3%, 2%, 1%
+
+export const generateReferralCode = () => {
+    return Math.random().toString(36).substring(2, 8).toUpperCase();
+};

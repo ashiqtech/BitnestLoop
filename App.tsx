@@ -36,7 +36,8 @@ import {
     SAVING_MAX, 
     SAVING_DAILY_PERCENT, 
     REFERRAL_TIERS,
-    ADMIN_EMAIL 
+    ADMIN_EMAIL,
+    generateReferralCode
 } from './constants';
 
 // Component Imports
@@ -111,7 +112,7 @@ export default function App() {
     };
 
     // --- Mock Auth Logic for Demo Mode ---
-    const handleMockLogin = (email: string, remember: boolean = true, showNotify: boolean = true) => {
+    const handleMockLogin = (email: string, remember: boolean = true, showNotify: boolean = true, invitedByCode?: string) => {
         const mockUser = { uid: 'demo-user-' + email.replace(/[^a-zA-Z0-9]/g, ''), email: email };
         
         // Retrieve stored data or create default
@@ -128,22 +129,40 @@ export default function App() {
             loopEndTime: null,
             loopStatus: 'idle',
             savingsBalance: 0,
-            referralCode: 'BN' + Math.floor(100000 + Math.random() * 900000),
-            invitedBy: null,
+            referralCode: generateReferralCode(),
+            invitedBy: invitedByCode || null,
             isAdmin: email.toLowerCase() === ADMIN_EMAIL.toLowerCase(),
             isBlocked: false,
             teamCommission: 0,
             totalEarnings: 0,
-            joinedAt: new Date().toISOString()
+            joinedAt: new Date().toISOString(),
+            teamCount: 0,
+            referralClicks: 0
         };
         
         const finalData = storedData || defaultMockData;
 
-        // Inject team count for demo
+        // Inject team count and clicks for demo
         try {
             const code = finalData.referralCode.trim().toUpperCase();
-            const count = parseInt(localStorage.getItem(`bitnest_demo_team_${code}`) || '0');
-            finalData.teamCount = count;
+            
+            // Count actual users who were invited by this code in demo storage
+            let actualReferralCount = 0;
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                if (key && key.startsWith('bitnest_data_')) {
+                    const uData = JSON.parse(localStorage.getItem(key) || '{}');
+                    if (uData.invitedBy === code) {
+                        actualReferralCount++;
+                    }
+                }
+            }
+            finalData.teamCount = actualReferralCount;
+
+            // Get clicks from local storage key
+            const clicks = parseInt(localStorage.getItem(`bitnest_demo_clicks_${code}`) || '0');
+            finalData.referralClicks = clicks;
+
         } catch (e) {}
 
         setUser(mockUser);
@@ -216,15 +235,9 @@ export default function App() {
                     if (docSnap.exists()) {
                         const data = docSnap.data() as UserData;
                         
-                        // Fetch Team Count Live for UI Badge
-                        try {
-                             const q = query(collection(db, 'artifacts', appId, 'public', 'data', 'users'), where('invitedBy', '==', data.referralCode));
-                             const countSnap = await getDocs(q);
-                             data.teamCount = countSnap.size;
-                        } catch(e) {
-                             console.log("Error fetching team count", e);
-                        }
-
+                        // NOTE: Direct DB teamCount is preferred, but query acts as backup/validation logic removed for performance
+                        // We rely on the stored teamCount which updates on signup
+                        
                         setUserData(data);
                         if (data.isBlocked) {
                             showNotification('Your account has been blocked by Admin.', 'error');
@@ -238,14 +251,15 @@ export default function App() {
                             loopEndTime: null,
                             loopStatus: 'idle',
                             savingsBalance: 0,
-                            referralCode: 'BN' + Math.floor(100000 + Math.random() * 900000),
+                            referralCode: generateReferralCode(),
                             invitedBy: null,
                             isAdmin: currentUser.email === ADMIN_EMAIL,
                             isBlocked: false,
                             teamCommission: 0,
                             totalEarnings: 0,
                             joinedAt: serverTimestamp(),
-                            teamCount: 0
+                            teamCount: 0,
+                            referralClicks: 0
                         };
                         
                         setUserData(defaultData);

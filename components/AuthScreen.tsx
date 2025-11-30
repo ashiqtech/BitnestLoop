@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword, sendPasswordResetEmail, Auth, setPersistence, browserLocalPersistence, browserSessionPersistence } from 'firebase/auth';
-import { Firestore, doc, setDoc, serverTimestamp } from 'firebase/firestore';
-import { SUPPORT_EMAIL, ADMIN_EMAIL } from '../constants';
+import { Firestore, doc, setDoc, serverTimestamp, updateDoc, increment, collection, query, where, getDocs } from 'firebase/firestore';
+import { SUPPORT_EMAIL, ADMIN_EMAIL, generateReferralCode } from '../constants';
 import { NotificationState } from '../types';
 import { CheckCircle2 } from 'lucide-react';
 
@@ -15,10 +15,8 @@ interface AuthScreenProps {
     onSuccess: (msg: string) => void;
     notification: NotificationState | null;
     isDemo: boolean;
-    onMockLogin: (email: string, remember: boolean) => void;
+    onMockLogin: (email: string, remember: boolean, showNotify: boolean, invitedByCode?: string) => void;
 }
-
-const generateReferralCode = () => 'BN' + Math.floor(100000 + Math.random() * 900000);
 
 export default function AuthScreen({ mode, setMode, auth, db, appId, onError, onSuccess, notification, isDemo, onMockLogin }: AuthScreenProps) {
     const [formData, setFormData] = useState({ email: '', password: '', confirmPassword: '', referralCode: '' });
@@ -26,16 +24,51 @@ export default function AuthScreen({ mode, setMode, auth, db, appId, onError, on
     const [loading, setLoading] = useState(false);
     const [isReferralLocked, setIsReferralLocked] = useState(false);
 
-    // Auto-fill referral code from URL
+    // Auto-fill referral code from URL and Track Clicks
     useEffect(() => {
         const params = new URLSearchParams(window.location.search);
         const refCode = params.get('ref');
+        
         if (refCode) {
-            setFormData(prev => ({ ...prev, referralCode: refCode }));
+            const cleanCode = refCode.trim().toUpperCase();
+            setFormData(prev => ({ ...prev, referralCode: cleanCode }));
             setIsReferralLocked(true);
             if (mode === 'signin') setMode('signup');
+
+            // --- TRACK REFERRAL CLICK ---
+            const trackClick = async () => {
+                // Prevent duplicate counting for this browser session
+                const storageKey = `bitnest_click_${cleanCode}`;
+                if (sessionStorage.getItem(storageKey)) return;
+                
+                sessionStorage.setItem(storageKey, 'true');
+
+                if (isDemo) {
+                     // Demo Mode: Update click count in local storage
+                     const key = `bitnest_demo_clicks_${cleanCode}`;
+                     const current = parseInt(localStorage.getItem(key) || '0');
+                     localStorage.setItem(key, (current + 1).toString());
+                } else if (db) {
+                     // Real Mode: Find referrer and increment clicks
+                     // Note: This relies on DB rules permitting this update, or public access.
+                     // Best effort for client-side app.
+                     try {
+                         const q = query(collection(db, 'artifacts', appId, 'public', 'data', 'users'), where('referralCode', '==', cleanCode));
+                         const snap = await getDocs(q);
+                         if (!snap.empty) {
+                             const userDoc = snap.docs[0];
+                             await updateDoc(userDoc.ref, {
+                                 referralClicks: increment(1)
+                             });
+                         }
+                     } catch (e) {
+                         console.warn("Could not track click (likely permission issue)", e);
+                     }
+                }
+            };
+            trackClick();
         }
-    }, [mode, setMode]);
+    }, [mode, setMode, isDemo, db, appId]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -55,20 +88,14 @@ export default function AuthScreen({ mode, setMode, auth, db, appId, onError, on
                          return;
                     }
 
-                    // Increment Demo Team Count if referral code exists
-                    if (formData.referralCode) {
-                        const cleanCode = formData.referralCode.trim().toUpperCase();
-                        const key = `bitnest_demo_team_${cleanCode}`;
-                        const current = parseInt(localStorage.getItem(key) || '0');
-                        localStorage.setItem(key, (current + 1).toString());
-                    }
-
-                    onMockLogin(formData.email, rememberMe);
+                    const invitedBy = formData.referralCode ? formData.referralCode.trim().toUpperCase() : undefined;
+                    
+                    onMockLogin(formData.email, rememberMe, true, invitedBy);
                 } else if (mode === 'forgot') {
                     onSuccess("Reset link sent");
                     setMode('signin');
                 } else {
-                    onMockLogin(formData.email, rememberMe);
+                    onMockLogin(formData.email, rememberMe, true);
                 }
             }, 1000);
             return;
@@ -88,10 +115,24 @@ export default function AuthScreen({ mode, setMode, auth, db, appId, onError, on
                 const uc = await createUserWithEmailAndPassword(auth, formData.email, formData.password);
                 const isAdmin = formData.email.toLowerCase() === ADMIN_EMAIL.toLowerCase();
 
-                // Check referral - DIRECT SAVE (Bypass Query to fix permission issues)
                 let inviterCode = null;
                 if (formData.referralCode) {
                     inviterCode = formData.referralCode.trim().toUpperCase();
+                    
+                    // --- DIRECT INCREMENT STRATEGY FOR REAL MODE SIGNUPS ---
+                    // Try to find the inviter and increment their count immediately
+                    try {
+                        const q = query(collection(db, 'artifacts', appId, 'public', 'data', 'users'), where('referralCode', '==', inviterCode));
+                        const snap = await getDocs(q);
+                        if (!snap.empty) {
+                            const inviterDoc = snap.docs[0];
+                            await updateDoc(inviterDoc.ref, {
+                                teamCount: increment(1)
+                            });
+                        }
+                    } catch (e) {
+                        console.error("Failed to increment referrer count:", e);
+                    }
                 }
 
                 await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', uc.user.uid), {
@@ -107,7 +148,9 @@ export default function AuthScreen({ mode, setMode, auth, db, appId, onError, on
                     isBlocked: false,
                     teamCommission: 0,
                     totalEarnings: 0,
-                    joinedAt: serverTimestamp()
+                    joinedAt: serverTimestamp(),
+                    teamCount: 0,
+                    referralClicks: 0
                 });
                 onSuccess("Account created! Welcome.");
             } else if (mode === 'signin') {
